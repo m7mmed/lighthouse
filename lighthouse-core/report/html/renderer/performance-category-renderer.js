@@ -61,27 +61,32 @@ class PerformanceCategoryRenderer extends CategoryRenderer {
     if (audit.result.scoreDisplayMode === 'error') return element;
 
     const details = audit.result.details;
-    const summaryInfo = /** @type {!DetailsRenderer.OpportunitySummary}
-    */ (details && details.summary);
-    if (!summaryInfo || !summaryInfo.wastedMs) {
+    // TODO(bckenny): type and just details
+    const opportunityDetails = /** @type {!DetailsRenderer.OpportunityDetails}*/ (details);
+    if (!opportunityDetails || opportunityDetails.overallSavingsMs === undefined) {
       return element;
     }
 
     const displayValue = Util.formatDisplayValue(audit.result.displayValue);
-    const sparklineWidthPct = `${summaryInfo.wastedMs / scale * 100}%`;
-    const wastedMs = Util.formatSeconds(summaryInfo.wastedMs, 0.01);
+    const sparklineWidthPct = `${opportunityDetails.overallSavingsMs / scale * 100}%`;
+    const savingsMs = Util.formatSeconds(opportunityDetails.overallSavingsMs, 0.01);
     const auditDescription = this.dom.convertMarkdownLinkSnippets(audit.result.helpText);
     this.dom.find('.lh-load-opportunity__sparkline', tmpl).title = displayValue;
     this.dom.find('.lh-load-opportunity__wasted-stat', tmpl).title = displayValue;
     this.dom.find('.lh-sparkline__bar', tmpl).style.width = sparklineWidthPct;
-    this.dom.find('.lh-load-opportunity__wasted-stat', tmpl).textContent = wastedMs;
+    this.dom.find('.lh-load-opportunity__wasted-stat', tmpl).textContent = savingsMs;
     this.dom.find('.lh-load-opportunity__description', tmpl).appendChild(auditDescription);
 
     // If there's no `type`, then we only used details for `summary`
     if (details.type) {
+      if (details.type !== 'opportunity') {
+        throw new Error(audit.result.name + ' opportunity had details type "' + details.type + '"');
+      }
       const detailsElem = this.detailsRenderer.render(details);
       detailsElem.classList.add('lh-details');
       element.appendChild(detailsElem);
+    } else {
+      throw new Error(audit.result.name + 'did not have a type');
     }
 
     return element;
@@ -95,12 +100,10 @@ class PerformanceCategoryRenderer extends CategoryRenderer {
    * @return {number}
    */
   _getWastedMs(audit) {
-    if (
-      audit.result.details &&
-      audit.result.details.summary &&
-      typeof audit.result.details.summary.wastedMs === 'number'
-    ) {
-      return audit.result.details.summary.wastedMs;
+    const oppDetails = /** @type {!DetailsRenderer.OpportunityDetails}*/ (audit.result.details);
+
+    if (oppDetails && typeof oppDetails.overallSavingsMs === 'number') {
+      return oppDetails.overallSavingsMs;
     } else {
       return Number.MIN_VALUE;
     }
